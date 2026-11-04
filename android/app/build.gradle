@@ -3,6 +3,9 @@ plugins {
 }
 
 android {
+    buildFeatures {
+        buildConfig true
+    }
     namespace 'com.prathvi.effectcraft'
     compileSdk 36
 
