@@ -21,10 +21,10 @@ jobs:
       CARGO_BUILD_JOBS: 2
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Java 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '17'
@@ -101,7 +101,7 @@ jobs:
           du -sh android/app/src/main/assets/web
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
 
       - name: Install Android platform and build tools
         run: |
@@ -109,7 +109,7 @@ jobs:
           sdkmanager "platforms;android-36" "build-tools;36.0.0"
 
       - name: Set up Gradle 8.13
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: '8.13'
 
@@ -121,7 +121,7 @@ jobs:
         run: cp android/app/build/outputs/apk/debug/app-debug.apk effectcraft-android-debug.apk
 
       - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: effectcraft-android-apk
           path: effectcraft-android-debug.apk
