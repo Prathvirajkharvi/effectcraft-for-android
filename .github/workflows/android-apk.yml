@@ -1,0 +1,129 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build offline Android APK
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      CARGO_BUILD_JOBS: 2
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Rust and WASM target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: effectcraft-wasm-android-v1
+          workspaces: |
+            upstream -> upstream/target
+            . -> target
+
+      - name: Install WASM optimizer
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y binaryen rsync
+
+      - name: Prepare EffectCraft source
+        id: source
+        run: |
+          if [ -f Cargo.toml ]; then
+            echo "SOURCE_DIR=$GITHUB_WORKSPACE" >> "$GITHUB_ENV"
+            echo "SYNC_UPSTREAM=false" >> "$GITHUB_ENV"
+            echo "Using EffectCraft source already present in this repository."
+          else
+            COMMIT="$(tr -d '\r\n' < UPSTREAM_COMMIT)"
+            mkdir -p upstream
+            curl --fail --location --retry 3 "https://github.com/storytold/effectcraft/archive/${COMMIT}.tar.gz" \
+              | tar -xz --strip-components=1 -C upstream
+            python3 scripts/patch_mobile_web.py upstream/apps/effectcraft-web/web/index.html
+            echo "SOURCE_DIR=$GITHUB_WORKSPACE/upstream" >> "$GITHUB_ENV"
+            echo "SYNC_UPSTREAM=true" >> "$GITHUB_ENV"
+          fi
+
+      - name: Import pinned upstream source into this repository
+        if: env.SYNC_UPSTREAM == 'true'
+        run: |
+          cp upstream/README.md UPSTREAM_README.md
+          rsync -a \
+            --exclude='.git/' \
+            --exclude='.github/' \
+            --exclude='android/' \
+            --exclude='scripts/' \
+            --exclude='README.md' \
+            --exclude='UPSTREAM_COMMIT' \
+            --exclude='UPSTREAM_README.md' \
+            --exclude='ANDROID_BUILD_README.md' \
+            --exclude='target/' \
+            upstream/ ./
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -m "Import pinned EffectCraft source for Android build"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
+
+      - name: Install matching wasm-bindgen CLI
+        run: cargo install wasm-bindgen-cli --version 0.2.129 --locked
+
+      - name: Build EffectCraft web engine
+        run: cd "$SOURCE_DIR" && cargo xtask web
+
+      - name: Bundle web engine into Android assets
+        run: |
+          mkdir -p android/app/src/main/assets/web
+          cp -a "$SOURCE_DIR/target/web/dist/." android/app/src/main/assets/web/
+          echo "Bundled web assets:"
+          du -sh android/app/src/main/assets/web
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android platform and build tools
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Set up Gradle 8.13
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Build installable debug APK
+        working-directory: android
+        run: gradle --no-daemon --stacktrace :app:assembleDebug
+
+      - name: Rename APK
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk effectcraft-android-debug.apk
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: effectcraft-android-apk
+          path: effectcraft-android-debug.apk
+          if-no-files-found: error
+          retention-days: 30

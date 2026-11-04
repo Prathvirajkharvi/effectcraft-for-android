@@ -1,0 +1,46 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.prathvi.effectcraft'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId 'com.prathvi.effectcraft'
+        minSdk 29
+        targetSdk 35
+        versionCode 1
+        versionName '0.21.0-android'
+    }
+
+    buildTypes {
+        debug {
+            applicationIdSuffix '.debug'
+            versionNameSuffix '-debug'
+        }
+        release {
+            minifyEnabled false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    androidResources {
+        // Keep the WASM payload uncompressed in the APK. WebViewAssetLoader streams it directly.
+        noCompress += ['wasm']
+    }
+
+    packaging {
+        resources {
+            excludes += ['/META-INF/AL2.0', '/META-INF/LGPL2.1']
+        }
+    }
+}
+
+dependencies {
+    implementation 'androidx.webkit:webkit:1.18.0'
+}
