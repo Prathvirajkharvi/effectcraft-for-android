@@ -42,10 +42,19 @@ jobs:
             upstream -> upstream/target
             . -> target
 
-      - name: Install WASM optimizer
+      - name: Install WASM optimizer (Binaryen 133)
         run: |
           sudo apt-get update
-          sudo apt-get install -y binaryen rsync
+          sudo apt-get install -y curl rsync
+          archive="$RUNNER_TEMP/binaryen-version_133-x86_64-linux.tar.gz"
+          curl --fail --location --retry 3 "https://github.com/WebAssembly/binaryen/releases/download/version_133/binaryen-version_133-x86_64-linux.tar.gz" --output "$archive"
+          echo "2dc9c7813f5375db93d96ead4b78222fcc3e2677bbb832297af4797782a37489  $archive" | sha256sum --check
+          mkdir -p "$RUNNER_TEMP/binaryen"
+          tar -xzf "$archive" -C "$RUNNER_TEMP/binaryen"
+          wasm_opt="$(find "$RUNNER_TEMP/binaryen" -type f -name wasm-opt -perm -111 -print -quit)"
+          test -n "$wasm_opt"
+          echo "$(dirname "$wasm_opt")" >> "$GITHUB_PATH"
+          "$wasm_opt" --version
 
       - name: Prepare EffectCraft source
         id: source
