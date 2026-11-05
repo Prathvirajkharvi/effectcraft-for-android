@@ -116,9 +116,21 @@ public final class MainActivity extends Activity {
                 headers.put("Cross-Origin-Opener-Policy", "same-origin");
                 headers.put("Cross-Origin-Embedder-Policy", "require-corp");
                 headers.put("Cross-Origin-Resource-Policy", "same-origin");
+                int statusCode = original.getStatusCode();
+                String reasonPhrase = original.getReasonPhrase();
+
+                // AssetLoader responses may have an unset status code (-1).
+                // The extended WebResourceResponse constructor requires 100-599.
+                if (statusCode < 100 || statusCode > 599) {
+                    statusCode = 200;
+                    reasonPhrase = "OK";
+                } else if (reasonPhrase == null || reasonPhrase.trim().isEmpty()) {
+                    reasonPhrase = statusCode == 200 ? "OK" : "Response";
+                }
+
                 return new WebResourceResponse(
-                        original.getMimeType(), original.getEncoding(), original.getStatusCode(),
-                        original.getReasonPhrase(), headers, original.getData());
+                        original.getMimeType(), original.getEncoding(), statusCode,
+                        reasonPhrase, headers, original.getData());
             }
 
             @Override
