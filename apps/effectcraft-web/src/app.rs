@@ -272,10 +272,26 @@ pub async fn start(canvas_id: String) -> Result<(), JsValue> {
     diskcache::init();
     storage::refresh();
     let runner = eframe::WebRunner::new();
+    let mut web_options = eframe::WebOptions::default();
+
+    // Clamp requested WebGPU limits to the actual adapter capabilities.
+    if let eframe::egui_wgpu::WgpuSetup::CreateNew(setup) =
+        &mut web_options.wgpu_options.wgpu_setup
+    {
+        let default_descriptor = Arc::clone(&setup.device_descriptor);
+
+        setup.device_descriptor = Arc::new(move |adapter| {
+            let mut descriptor = default_descriptor(adapter);
+            descriptor.required_limits =
+                descriptor.required_limits.or_worse_values_from(&adapter.limits());
+            descriptor
+        });
+    }
+
     runner
         .start(
             canvas,
-            eframe::WebOptions::default(),
+            web_options,
             Box::new(move |cc| {
                 EffectcraftApp::install_ime_reset_hooks(&cc.egui_ctx);
                 CTX.with(|c| *c.borrow_mut() = Some(cc.egui_ctx.clone()));
